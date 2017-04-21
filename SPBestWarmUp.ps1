@@ -14,7 +14,7 @@
 	Typing "SPBestWarmUp.ps1 -install" will create a local Task Scheduler job under credentials of the current user. Job runs every 60 minutes on the hour to help automatically populate cache. Keeps cache full even after IIS daily recycle, WSP deployment, reboot, or other system events.
 
 .PARAMETER installfarm
-	Typing "SPBestWarmUp.ps1 -farminstall" will create a Task Scheduler job on all machines in the farm.
+	Typing "SPBestWarmUp.ps1 -installfarm" will create a Task Scheduler job on all machines in the farm.
 
 .PARAMETER uninstall
 	Typing "SPBestWarmUp.ps1 -uninstall" will remove Task Scheduler job from all machines in the farm.
@@ -32,7 +32,7 @@
 	Typing "SPBestWarmUp.ps1 -skipsubwebs" will skip the subwebs of each site collection and only process the root web of the site collection.
 
 .PARAMETER skipadmincheck
-	Typing "SPBestWarmUp.ps1 -noadmincheck" will skip checking of the current user is a local administrator. Local administrator rights are necessary for the installation of the Windows Task Scheduler but not necessary for simply running the warmup script.
+	Typing "SPBestWarmUp.ps1 -skipadmincheck" will skip checking of the current user is a local administrator. Local administrator rights are necessary for the installation of the Windows Task Scheduler but not necessary for simply running the warmup script.
 
 .EXAMPLE
 	.\SPBestWarmUp.ps1 -url "http://domainA.tld","http://domainB.tld"
@@ -59,8 +59,9 @@
 	Author   :  Jeff Jones  - @spjeff
 	Author   :  Hagen Deike - @hd_ka
 	Author   :  Lars Fernhomberg
-	Version  :  2.3.0
-	Modified :  2017-01-25
+	Author   :  Charles Crossan - @crossan007
+	Version  :  2.4.0
+	Modified :  2017-04-21
 
 .LINK
 	https://github.com/spjeff/spbestwarmup
@@ -115,7 +116,7 @@ Function Installer() {
 	Write-Output "  User for Task Scheduler job: $user"
 	
     # Attempt to detect password from IIS Pool (if current user is local admin and farm account)
-    $appPools = Get-CimInstance -Namespace "root/MicrosoftIISv2" -ClassName "IIsApplicationPoolSetting" -Property Name, WAMUserName, WAMUserPass | Select-Object WAMUserName, WAMUserPass
+    $appPools = Get-WMIObject -Namespace "root/MicrosoftIISv2" -Class "IIsApplicationPoolSetting" | Select-Object WAMUserName, WAMUserPass
     foreach ($pool in $appPools) {			
         if ($pool.WAMUserName -like $user) {
             $pass = $pool.WAMUserPass
@@ -173,7 +174,7 @@ Function Installer() {
 			if ($_ -ne "localhost" -and $_ -ne $ENV:COMPUTERNAME) {
 				$dest = $cmdpath
 				$drive = $dest.substring(0,1)
-				$match =  Get-CimInstance -Class Win32_LogicalDisk | Where-Object {$_.DeviceID -eq ($drive+":") -and $_.DriveType -ne 4}
+				$match =  Get-WMIObject -Class Win32_LogicalDisk | Where-Object {$_.DeviceID -eq ($drive+":") -and $_.DriveType -eq 3}
 				if ($match) {
 					$dest = "\\" + $_ + "\" + $drive + "$" + $dest.substring(2,$dest.length-2)
 					$xmlDest = $dest.Replace(".ps1", ".xml")
@@ -378,7 +379,7 @@ Function SaveLog($id, $txt, $error) {
 
 # Main
 CreateLog
-WriteLog "SPBestWarmUp v2.3.0  (last updated 2017-01-25)`n------`n"
+WriteLog "SPBestWarmUp v2.4.0  (last updated 2017-04-21)`n------`n"
 
 # Check Permission Level
 if (!$skipadmincheck -and !([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
